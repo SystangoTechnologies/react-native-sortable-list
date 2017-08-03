@@ -1,20 +1,19 @@
-import React, {Component} from 'react';
-import PropTypes from 'prop-types';
-import {Animated, PanResponder, StyleSheet} from 'react-native';
+import React, {Component, PropTypes} from 'react';
+import {Animated, PanResponder, StyleSheet, TouchableHighlight} from 'react-native';
 import {shallowEqual} from './utils';
+
+const ACTIVATION_DELAY = 200;
 
 export default class Row extends Component {
   static propTypes = {
     children: PropTypes.node,
     animated: PropTypes.bool,
     disabled: PropTypes.bool,
-    horizontal: PropTypes.bool,
     style: Animated.View.propTypes.style,
     location: PropTypes.shape({
       x: PropTypes.number,
       y: PropTypes.number,
     }),
-    activationTime: PropTypes.number,
 
     // Will be called on long press.
     onActivate: PropTypes.func,
@@ -30,7 +29,6 @@ export default class Row extends Component {
 
   static defaultProps = {
     location: {x: 0, y: 0},
-    activationTime: 200,
   };
 
   constructor(props) {
@@ -56,6 +54,7 @@ export default class Row extends Component {
 
     onPanResponderGrant: (e, gestureState) => {
       e.persist();
+      console.log('onPanResponderGrant',gestureState.x0,gestureState.y0);
       this._wasLongPress = false;
 
       this._longPressTimer = setTimeout(() => {
@@ -67,7 +66,7 @@ export default class Row extends Component {
           moveY: gestureState.y0,
         };
         this._toggleActive(e, gestureState);
-      }, this.props.activationTime);
+      }, ACTIVATION_DELAY);
     },
 
     onPanResponderMove: (e, gestureState) => {
@@ -90,6 +89,10 @@ export default class Row extends Component {
       if (this.props.onMove) {
         this.props.onMove(e, gestureState, this._nextLocation);
       }
+
+      if (this.props.onMoveRow) {
+        this.props.onMoveRow(this.props.index, this._nextLocation);
+      }
     },
 
     onPanResponderRelease: (e, gestureState) => {
@@ -100,7 +103,7 @@ export default class Row extends Component {
         this._cancelLongPress();
 
         if (this.props.onPress) {
-          this.props.onPress();
+          this.props.onPress(this.props.index, this.props.title);
         }
       }
     },
@@ -186,24 +189,23 @@ export default class Row extends Component {
   }
 
   _toggleActive(e, gestureState) {
+    console.log('_toggleActive==',this._location,gestureState, this._active);
     const callback = this._active ? this.props.onRelease : this.props.onActivate;
-
     this._active = !this._active;
-
     if (callback) {
-      callback(e, gestureState, this._location);
+      callback(e, gestureState, this._location, this.props.index);
     }
   }
 
   _mapGestureToMove(prevGestureState, gestureState) {
-    return this.props.horizontal
-      ? {dx: gestureState.moveX - prevGestureState.moveX}
-      : {dy: gestureState.moveY - prevGestureState.moveY};
+    return {
+      dy: gestureState.moveY - prevGestureState.moveY,
+    };
   }
 
   _isDisabled() {
       return this.props.disabled ||
-        this._isAnimationRunning;
+        this._isAnimationRunning && this.props.disabledDuringAnimation;
     }
 
   _isTouchInsideElement({nativeEvent}) {
